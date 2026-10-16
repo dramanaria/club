@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Квитки DRAMAN</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  /* Кольори беруться з теми Telegram; нижче лише запасні значення для звичайного браузера */
+  :root{
+    --tg-theme-bg-color:#ffffff; --tg-theme-text-color:#1b1b1f; --tg-theme-hint-color:#8a8a92;
+    --tg-theme-secondary-bg-color:#f1f1f4; --tg-theme-button-color:#8b2323; --tg-theme-button-text-color:#ffffff;
+    --ok:#2e9e4a; --bad:#e5484d;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --tg-theme-bg-color:#17171a; --tg-theme-text-color:#f2f2f5; --tg-theme-hint-color:#8d8d96;
+      --tg-theme-secondary-bg-color:#232328; --tg-theme-button-color:#b83a3a; --tg-theme-button-text-color:#ffffff;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--tg-theme-bg-color);color:var(--tg-theme-text-color)}
+  body{font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+  .wrap{max-width:480px;margin:0 auto;padding:16px 16px 132px}
+  h1{font-size:21px;line-height:1.2;margin:0 0 4px}
+  h2{font-size:18px;margin:0 0 12px}
+  .meta{color:var(--tg-theme-hint-color);font-size:14px}
+  .demo{background:#f2a516;color:#1b1b1f;font-size:12px;padding:7px 10px;border-radius:8px;margin-bottom:14px}
+  .stage{margin:22px auto 16px;width:72%;padding:7px 0 9px;text-align:center;border-radius:0 0 50% 50%/0 0 100% 100%;
+    background:var(--tg-theme-button-color);color:var(--tg-theme-button-text-color);font-weight:700;letter-spacing:.25em;font-size:12px}
+  .hall{display:grid;gap:7px;align-items:center}
+  .rn{font-size:12px;color:var(--tg-theme-hint-color);text-align:center}
+  .seat{aspect-ratio:1;border-radius:50%;border:0;padding:0;background:var(--c);color:#fff;
+    font-family:inherit;font-weight:600;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;
+    transition:transform .12s, box-shadow .12s}
+  .seat.taken{background:var(--tg-theme-secondary-bg-color);color:transparent;cursor:default}
+  .seat.sel{transform:scale(.86);box-shadow:0 0 0 3px var(--tg-theme-bg-color),0 0 0 5.5px var(--c)}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:20px;font-size:13px;color:var(--tg-theme-hint-color)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:12px;height:12px;border-radius:50%;background:var(--c)}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:var(--tg-theme-bg-color);
+    border-top:1px solid var(--tg-theme-secondary-bg-color);padding:10px 16px calc(12px + env(safe-area-inset-bottom))}
+  .bar .in{max-width:448px;margin:0 auto}
+  .picked{font-size:13px;color:var(--tg-theme-hint-color);min-height:18px;margin-bottom:8px}
+  .btn{display:block;width:100%;height:48px;border:0;border-radius:12px;background:var(--tg-theme-button-color);
+    color:var(--tg-theme-button-text-color);font-family:inherit;font-weight:600;font-size:16px;line-height:1;cursor:pointer}
+  .btn:disabled{opacity:.45;cursor:default}
+  .btn.ghost{background:var(--tg-theme-secondary-bg-color);color:var(--tg-theme-text-color)}
+  .btn + .btn{margin-top:8px}
+  .card{background:var(--tg-theme-secondary-bg-color);border-radius:16px;padding:16px;margin-bottom:12px}
+  .center{text-align:center}
+  .big{font-size:26px;font-weight:700;line-height:1.2}
+  .timer{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;margin:6px 0}
+  .ticket{position:relative}
+  .ticket .seatline{font-size:20px;font-weight:700;margin-top:10px}
+  .qr{background:#fff;padding:12px;border-radius:12px;width:max-content;margin:14px auto 8px}
+  .code{font:12px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tg-theme-hint-color);text-align:center;word-break:break-all}
+  .used .qr{opacity:.2}
+  .stamp{position:absolute;top:50%;left:50%;transform:translate(-50%,-10%) rotate(-12deg);border:3px solid var(--bad);color:var(--bad);
+    font-weight:800;letter-spacing:.1em;padding:6px 12px;border-radius:8px;background:var(--tg-theme-bg-color)}
+  .result{border-radius:16px;padding:22px 16px;text-align:center;color:#fff;margin-bottom:12px}
+  .result.ok{background:var(--ok)} .result.bad{background:var(--bad)}
+  .field{display:flex;gap:8px;margin-top:12px}
+  .field input{flex:1;min-width:0;height:44px;border-radius:10px;border:1px solid var(--tg-theme-secondary-bg-color);
+    background:var(--tg-theme-bg-color);color:var(--tg-theme-text-color);padding:0 12px;font:inherit}
+  .field .btn{width:auto;padding:0 16px;height:44px}
+  .muted{color:var(--tg-theme-hint-color);font-size:13px}
+  .spin{padding:60px 0;text-align:center;color:var(--tg-theme-hint-color)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="spin">Завантаження…</div></div>
+<div class="bar" id="bar" hidden><div class="in"><div class="picked" id="picked"></div><button class="btn" id="pay" disabled>Оберіть місця</button></div></div>
+
+<script>
+/* ===== Налаштування ===== */
+const CONFIG = {
+  API_URL: 'https://script.google.com/macros/s/AKfycbyygFDAV7gsWNSm80aZZilOP0OSGoos4L-QYV75kk2xEmyUCcQ9Sizj2ZdevrI2JRNOTw/exec',          // адреса Apps Script …/exec. Порожньо = демо-режим без оплати
+  AISLE_AFTER: 4,       // прохід після 4-го місця в ряду
+};
+/* Кольори цінових зон: від найдорожчої до найдешевшої */
+const PALETTE = ['#1fa9d6', '#e5484d', '#86a8bd', '#f0a31a', '#5fbb5d', '#9b6ad6'];
+
+const tg = window.Telegram && window.Telegram.WebApp;
+const inTg = !!(tg && tg.initData);
+if (tg) { tg.ready(); tg.expand(); }
+const DEMO = !CONFIG.API_URL;
+
+const qs = new URLSearchParams(location.search);
+const startParam = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || qs.get('startapp') || '';
+const parts = startParam.split('-');
+const SHOW_ID = qs.get('show') || parts[0] || 'demo';
+const SOURCE = qs.get('src') || parts.slice(1).join('-');
+const VIEW = qs.get('view') || (['tickets', 'checkin'].includes(parts[0]) ? parts[0] : 'buy');
+
+const $ = s => document.querySelector(s);
+const app = $('#app');
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function money(n) { return n.toLocaleString('uk-UA') + ' ₴'; }
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function haptic(type) { try { if (!tg || !tg.HapticFeedback) return; if (type === 'sel') tg.HapticFeedback.selectionChanged(); else tg.HapticFeedback.notificationOccurred(type); } catch (_) {} }
+function notify(msg) { if (inTg) tg.showAlert(msg); else alert(msg); }
+function hideBar() { $('#bar').hidden = true; }
+function demoNote() { return DEMO ? '<div class="demo">Демо в браузері: дані не зберігаються, квитки в чат не надсилаються.</div>' : ''; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ===== Звʼязок із сервером ===== */
+async function api(action, data = {}) {
+  if (DEMO) { await sleep(300); return demo[action](data); }
+  const r = await fetch(CONFIG.API_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},   // простий запит без CORS-preflight
+    body: JSON.stringify(Object.assign({action, initData: tg ? tg.initData : ''}, data)),
+  });
+  return r.json();
+}
+
+/* ===== Демо-сервер у браузері ===== */
+const demo = (() => {
+  const prices = {1: 390, 2: 350, 3: 290, 4: 280, 5: 250};
+  // зайняті місця як на скрині Контрамарки
+  const taken = new Set(['R1S1','R1S2','R1S3','R2S3','R2S4','R2S5','R2S6','R2S7','R2S8','R3S1','R3S2','R3S3','R3S4','R3S5','R5S5','R5S6','R5S7','R5S8']);
+  const show = {id: 'demo', title: 'Назва вистави', date: '10.10.2026', time: '19:00', venue: 'Театральна мансарда'};
+  const tickets = []; const used = {}; let pending = null;
+  return {
+    seats() {
+      const seats = [];
+      for (let r = 1; r <= 5; r++) for (let n = 1; n <= 8; n++) { const id = `R${r}S${n}`; seats.push({id, row: r, n, price: prices[r], free: !taken.has(id)}); }
+      return {ok: true, show, seats, maxSeats: 6, holdMin: 15};
+    },
+    order({seats}) {
+      const busy = seats.filter(id => taken.has(id));
+      if (busy.length) return {ok: false, taken: busy, error: 'Ці місця щойно зайняли'};
+      seats.forEach(id => taken.add(id));
+      const id = 'DEMO-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+      pending = {id, seats, paidAt: Infinity};
+      const sum = seats.reduce((s, x) => s + prices[+x.split('S')[0].slice(1)], 0);
+      return {ok: true, order: id, mock: true, pageUrl: '', sum, until: Date.now() + 15 * 60000};
+    },
+    mockpay({order}) {
+      if (pending && pending.id === order) pending.paidAt = 0;
+      return this.status({order});
+    },
+    status({order}) {
+      if (!pending || pending.id !== order) return {ok: true, status: 'cancelled'};
+      if (Date.now() < pending.paidAt) return {ok: true, status: 'pending'};
+      if (!pending.done) {
+        pending.done = true;
+        pending.seats.forEach(id => { const [r, n] = id.slice(1).split('S').map(Number); tickets.push({code: `${order}.${id}.X7Q2K9`, row: r, n, price: prices[r], used: false, show}); });
+      }
+      return {ok: true, status: 'paid', tickets: tickets.filter(t => t.code.startsWith(order))};
+    },
+    cancel({order}) { if (pending && pending.id === order && !pending.done) { pending.seats.forEach(id => taken.delete(id)); pending = null; } return {ok: true, status: 'cancelled'}; },
+    tickets() { return {ok: true, tickets: tickets.map(t => Object.assign({}, t, {used: !!used[t.code]}))}; },
+    checkin({code}) {
+      const t = tickets.find(x => x.code.toUpperCase() === String(code).trim().toUpperCase());
+      if (!t) return {ok: true, result: 'unknown'};
+      if (used[t.code]) return {ok: true, result: 'used', usedAt: used[t.code], ticket: t};
+      used[t.code] = new Date().toLocaleTimeString('uk-UA', {hour: '2-digit', minute: '2-digit'});
+      return {ok: true, result: 'ok', ticket: t};
+    },
+  };
+})();
+
+/* ===== Купівля ===== */
+let SHOW = null, SEATS = [], MAX = 6, HOLD = 15, ZONE = {};
+const selected = new Set();
+
+async function loadBuy() {
+  hideBar();
+  app.innerHTML = '<div class="spin">Завантаження залу…</div>';
+  let res;
+  try { res = await api('seats', {show: SHOW_ID}); } catch (e) { return fail('Немає звʼязку з сервером. Спробуйте ще раз.'); }
+  if (!res.ok) return fail(res.error);
+  SHOW = res.show; SEATS = res.seats; MAX = res.maxSeats || 6; HOLD = res.holdMin || 15;
+  [...new Set(SEATS.map(s => s.price))].sort((a, b) => b - a).forEach((p, i) => ZONE[p] = PALETTE[i % PALETTE.length]);
+  SEATS.forEach(s => { if (!s.free) selected.delete(s.id); });
+  renderBuy();
+}
+
+function renderBuy() {
+  app.innerHTML = demoNote() +
+    `<h1>${esc(SHOW.title)}</h1><div class="meta">${esc(SHOW.date)} о ${esc(SHOW.time)} · ${esc(SHOW.venue)}</div>` +
+    '<div class="stage">СЦЕНА</div><div class="hall" id="hall"></div><div class="legend" id="legend"></div>';
+
+  const hall = $('#hall');
+  const perRow = Math.max(...SEATS.map(s => s.n));
+  const aisle = Math.min(CONFIG.AISLE_AFTER, perRow);
+  hall.style.gridTemplateColumns = `16px repeat(${aisle},1fr)` + (perRow > aisle ? ` 10px repeat(${perRow - aisle},1fr)` : '') + ' 16px';
+  [...new Set(SEATS.map(s => s.row))].sort((a, b) => a - b).forEach(r => {
+    hall.append(el('div', 'rn', r));
+    for (let n = 1; n <= perRow; n++) {
+      if (n === aisle + 1) hall.append(el('div'));
+      const s = SEATS.find(x => x.row === r && x.n === n);
+      if (!s) { hall.append(el('div')); continue; }
+      const b = el('button', 'seat' + (s.free ? '' : ' taken') + (selected.has(s.id) ? ' sel' : ''), n);
+      b.style.setProperty('--c', ZONE[s.price]);
+      b.disabled = !s.free;
+      b.setAttribute('aria-label', `Ряд ${r}, місце ${n}, ${s.price} гривень` + (s.free ? '' : ', зайнято'));
+      b.onclick = () => toggle(s, b);
+      hall.append(b);
+    }
+    hall.append(el('div', 'rn', r));
+  });
+
+  const legend = $('#legend');
+  Object.keys(ZONE).sort((a, b) => b - a).forEach(p => {
+    const sp = el('span'); const d = el('i', 'dot'); d.style.setProperty('--c', ZONE[p]); sp.append(d, money(+p)); legend.append(sp);
+  });
+  const t = el('span'); const d = el('i', 'dot'); d.style.setProperty('--c', 'var(--tg-theme-secondary-bg-color)'); t.append(d, 'зайнято'); legend.append(t);
+
+  $('#bar').hidden = false;
+  $('#pay').onclick = pay;
+  updateBar();
+}
+
+function toggle(s, btn) {
+  if (selected.has(s.id)) selected.delete(s.id);
+  else {
+    if (selected.size >= MAX) { haptic('warning'); return notify(`В одному замовленні до ${MAX} місць.`); }
+    selected.add(s.id);
+  }
+  btn.classList.toggle('sel', selected.has(s.id));
+  haptic('sel');
+  updateBar();
+}
+
+function updateBar() {
+  const list = SEATS.filter(s => selected.has(s.id)).sort((a, b) => a.row - b.row || a.n - b.n);
+  const sum = list.reduce((a, s) => a + s.price, 0);
+  const byRow = {};
+  list.forEach(s => (byRow[s.row] = byRow[s.row] || []).push(s.n));
+  $('#picked').textContent = list.length
+    ? Object.keys(byRow).map(r => `Ряд ${r}: ${byRow[r].join(', ')}`).join(' · ')
+    : 'Натисніть на вільні місця на схемі';
+  const btn = $('#pay');
+  btn.disabled = !list.length;
+  btn.textContent = list.length ? `Оплатити ${money(sum)}` : 'Оберіть місця';
+}
+
+async function pay() {
+  const btn = $('#pay');
+  btn.disabled = true; btn.textContent = 'Бронюємо місця…';
+  // дозвіл боту написати людині: туди прийдуть квитки
+  if (inTg && tg.requestWriteAccess && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9')) {
+    await new Promise(res => { try { tg.requestWriteAccess(() => res()); } catch (_) { res(); } });
+  }
+  let res;
+  try { res = await api('order', {show: SHOW_ID, seats: [...selected], source: SOURCE}); }
+  catch (e) { updateBar(); return notify('Немає звʼязку з сервером. Спробуйте ще раз.'); }
+  if (!res.ok) {
+    haptic('error');
+    if (res.taken) { res.taken.forEach(id => selected.delete(id)); await loadBuy(); }
+    else updateBar();
+    return notify(res.error || 'Не вдалося створити замовлення');
+  }
+  selected.clear();
+  if (res.mock) renderMockPay(res); else renderWait(res);
+}
+
+/* ===== Тестова оплата: замість monobank одна кнопка ===== */
+function renderMockPay(o) {
+  hideBar();
+  app.innerHTML = demoNote() +
+    `<h1>${esc(SHOW.title)}</h1><div class="meta">${esc(SHOW.date)} о ${esc(SHOW.time)} · ${esc(SHOW.venue)}</div>
+     <div class="card" style="margin-top:16px">
+       <div style="display:flex;justify-content:space-between;align-items:baseline">
+         <b>Замовлення ${esc(o.order)}</b><span class="muted" id="timer">--:--</span></div>
+       <div class="muted" style="margin:4px 0 12px">Місця заброньовано, поки ви оплачуєте</div>
+       <div style="display:flex;justify-content:space-between;font-weight:700;font-size:18px"><span>До сплати</span><span>${money(o.sum)}</span></div>
+     </div>
+     <div class="card muted" style="font-size:13px">Тестовий режим: гроші не списуються. Натисніть «Сплатити», і бот надішле квитки в чат.</div>
+     <button class="btn" id="mockpay">Сплатити ${money(o.sum)}</button>
+     <button class="btn ghost" id="cancel">Скасувати</button>`;
+  const tick = () => {
+    const left = Math.max(0, o.until - Date.now());
+    const t = $('#timer'); if (t) t.textContent = `${String(Math.floor(left / 60000)).padStart(2, '0')}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}`;
+  };
+  tick(); tickTimer = setInterval(tick, 1000);
+  $('#cancel').onclick = async () => { stopTimers(); await api('cancel', {order: o.order}); loadBuy(); };
+  $('#mockpay').onclick = async () => {
+    const b = $('#mockpay'); b.disabled = true; b.textContent = 'Оплата…';
+    let r; try { r = await api('mockpay', {order: o.order}); } catch (_) { b.disabled = false; b.textContent = `Сплатити ${money(o.sum)}`; return notify('Немає звʼязку з сервером. Спробуйте ще раз.'); }
+    if (!r.ok) { b.disabled = false; b.textContent = `Сплатити ${money(o.sum)}`; return notify(r.error || 'Не вдалося'); }
+    stopTimers();
+    if (r.status === 'paid') { haptic('success'); renderTickets(r.tickets, true); }
+    else { haptic('error'); notify('Час броні минув, оберіть місця знову.'); loadBuy(); }
+  };
+}
+
+/* ===== Очікування оплати ===== */
+let pollTimer = null, tickTimer = null;
+function stopTimers() { clearInterval(pollTimer); clearInterval(tickTimer); }
+
+function renderWait(o) {
+  hideBar();
+  app.innerHTML = demoNote() +
+    `<div class="card center"><div class="muted">Місця заброньовано на</div><div class="timer" id="timer">--:--</div>
+     <div class="muted">Сума ${money(o.sum)} · замовлення ${esc(o.order)}</div></div>
+     <div class="muted center" style="margin:4px 0 16px">${DEMO ? 'У демо оплата «пройде» сама за кілька секунд.' : 'Після оплати поверніться сюди, квитки зʼявляться автоматично.'}</div>
+     <button class="btn" id="go">Перейти до оплати</button><button class="btn ghost" id="cancel">Скасувати</button>`;
+  const open = () => { if (!o.pageUrl) return; if (inTg) tg.openLink(o.pageUrl); else window.open(o.pageUrl, '_blank'); };
+  $('#go').onclick = open;
+  $('#cancel').onclick = async () => { stopTimers(); await api('cancel', {order: o.order}); loadBuy(); };
+  open();
+
+  const tick = () => {
+    const left = Math.max(0, o.until - Date.now());
+    $('#timer').textContent = `${String(Math.floor(left / 60000)).padStart(2, '0')}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}`;
+  };
+  tick(); tickTimer = setInterval(tick, 1000);
+
+  const poll = async () => {
+    let r; try { r = await api('status', {order: o.order}); } catch (_) { return; }
+    if (!r.ok) return;
+    if (r.status === 'paid') { stopTimers(); haptic('success'); renderTickets(r.tickets, true); }
+    else if (['expired', 'failure', 'cancelled', 'reversed', 'error'].includes(r.status)) {
+      stopTimers(); haptic('error'); notify('Оплату не завершено, бронь знято.'); loadBuy();
+    }
+  };
+  pollTimer = setInterval(poll, 4000);
+  if (tg) tg.onEvent('activated', poll);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+}
+
+/* ===== Квитки ===== */
+async function loadTickets() {
+  hideBar();
+  app.innerHTML = '<div class="spin">Завантаження квитків…</div>';
+  let res; try { res = await api('tickets'); } catch (_) { return fail('Немає звʼязку з сервером.'); }
+  if (!res.ok) return fail(res.error);
+  renderTickets(res.tickets, false);
+}
+
+function renderTickets(list, justPaid) {
+  hideBar();
+  app.innerHTML = demoNote() + (justPaid
+    ? '<h2>Оплачено! Ваші квитки</h2><p class="muted">Покажіть QR-код на вході. Квитки також надіслано в чат із ботом.</p>'
+    : '<h2>Мої квитки</h2>');
+  if (!list || !list.length) { app.append(el('p', 'muted', 'Квитків поки немає.')); return; }
+  list.sort((a, b) => (a.used - b.used) || a.row - b.row || a.n - b.n).forEach(t => {
+    const c = el('div', 'card ticket' + (t.used ? ' used' : ''));
+    c.innerHTML = `<div style="font-weight:700">${esc(t.show.title)}</div>
+      <div class="meta">${esc(t.show.date)} о ${esc(t.show.time)} · ${esc(t.show.venue)}</div>
+      <div class="seatline">Ряд ${t.row} · Місце ${t.n}</div><div class="muted">${money(t.price)}</div>`;
+    const q = el('div', 'qr'); c.append(q);
+    new QRCode(q, {text: t.code, width: 184, height: 184, correctLevel: QRCode.CorrectLevel.M});
+    c.append(el('div', 'code', t.code));
+    if (t.used) c.append(el('div', 'stamp', 'ВИКОРИСТАНО'));
+    app.append(c);
+  });
+  if (justPaid && VIEW === 'buy') {
+    const b = el('button', 'btn ghost', 'Купити ще'); b.onclick = loadBuy; app.append(b);
+  }
+  if (DEMO) { const c = el('button', 'btn ghost', 'Демо: екран контролера'); c.onclick = renderCheckin; app.append(c); }
+}
+
+/* ===== Контроль входу ===== */
+function renderCheckin() {
+  hideBar();
+  const canScan = inTg && tg.showScanQrPopup && tg.isVersionAtLeast && tg.isVersionAtLeast('6.4');
+  app.innerHTML = demoNote() + `<h2>Контроль входу</h2><div id="res"></div>
+    <button class="btn" id="scan" ${canScan ? '' : 'disabled'}>Сканувати QR</button>
+    ${canScan ? '' : '<p class="muted">Сканер працює лише всередині Telegram. Тут можна ввести код вручну.</p>'}
+    <div class="field"><input id="code" placeholder="Код з квитка" autocomplete="off" autocapitalize="characters"><button class="btn ghost" id="chk">Перевірити</button></div>`;
+  $('#scan').onclick = () => tg.showScanQrPopup({text: 'Наведіть камеру на QR квитка'}, txt => { check(txt); return true; });
+  $('#chk').onclick = () => { const v = $('#code').value.trim(); if (v) check(v); };
+}
+
+async function check(code) {
+  const box = $('#res');
+  box.innerHTML = '<div class="card center muted">Перевіряю…</div>';
+  let r; try { r = await api('checkin', {code}); } catch (_) { box.innerHTML = ''; return notify('Немає звʼязку з сервером.'); }
+  if (!r.ok) { box.innerHTML = ''; return notify(r.error); }
+  const t = r.ticket;
+  const where = t ? `<div style="margin-top:6px">Ряд ${t.row} · Місце ${t.n}</div><div style="opacity:.85;font-size:13px">${esc(t.show.title)}, ${esc(t.show.date)} ${esc(t.show.time)}</div>` : '';
+  if (r.result === 'ok') { haptic('success'); box.innerHTML = `<div class="result ok"><div class="big">✓ Проходьте</div>${where}</div>`; }
+  else if (r.result === 'refunded') { haptic('error'); box.innerHTML = `<div class="result bad"><div class="big">Квиток повернено</div><div>Гроші за нього повернуто, вхід не дійсний</div>${where}</div>`; }
+  else if (r.result === 'used') { haptic('error'); box.innerHTML = `<div class="result bad"><div class="big">Вже пройшов</div><div>о ${esc(r.usedAt)}</div>${where}</div>`; }
+  else { haptic('error'); box.innerHTML = '<div class="result bad"><div class="big">Квиток не знайдено</div></div>'; }
+  $('#code').value = '';
+}
+
+function fail(msg) {
+  hideBar();
+  app.innerHTML = `<div class="card center"><div style="font-weight:600;margin-bottom:6px">Щось пішло не так</div><div class="muted">${esc(msg || '')}</div></div>`;
+  const b = el('button', 'btn ghost', 'Спробувати ще'); b.onclick = start; app.append(b);
+}
+
+function start() {
+  if (VIEW === 'tickets') return loadTickets();
+  if (VIEW === 'checkin') return renderCheckin();
+  return loadBuy();
+}
+start();
+</script>
+</body>
+</html>
