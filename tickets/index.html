@@ -43,6 +43,9 @@
     border-top:1px solid var(--tg-theme-secondary-bg-color);padding:10px 16px calc(12px + env(safe-area-inset-bottom))}
   .bar .in{max-width:448px;margin:0 auto}
   .picked{font-size:13px;color:var(--tg-theme-hint-color);min-height:18px;margin-bottom:8px}
+  .promo{font-size:13px;margin-bottom:8px;padding:8px 10px;border-radius:10px;background:var(--tg-theme-secondary-bg-color)}
+  .promo b{color:var(--tg-theme-button-color)}
+  .old{text-decoration:line-through;opacity:.6;font-weight:500;margin-right:6px}
   .btn{display:block;width:100%;height:48px;border:0;border-radius:12px;background:var(--tg-theme-button-color);
     color:var(--tg-theme-button-text-color);font-family:inherit;font-weight:600;font-size:16px;line-height:1;cursor:pointer}
   .btn:disabled{opacity:.45;cursor:default}
@@ -71,7 +74,7 @@
 </head>
 <body>
 <div class="wrap" id="app"><div class="spin">Завантаження…</div></div>
-<div class="bar" id="bar" hidden><div class="in"><div class="picked" id="picked"></div><button class="btn" id="pay" disabled>Оберіть місця</button></div></div>
+<div class="bar" id="bar" hidden><div class="in"><div class="promo" id="promo" hidden></div><div class="picked" id="picked"></div><button class="btn" id="pay" disabled>Оберіть місця</button></div></div>
 
 <script>
 /* ===== Налаштування ===== */
@@ -127,7 +130,7 @@ const demo = (() => {
     seats() {
       const seats = [];
       for (let r = 1; r <= 5; r++) for (let n = 1; n <= 8; n++) { const id = `R${r}S${n}`; seats.push({id, row: r, n, price: prices[r], free: !taken.has(id)}); }
-      return {ok: true, show, seats, maxSeats: 6, holdMin: 15};
+      return {ok: true, show, seats, maxSeats: 6, holdMin: 15, discount: {min: 2, pct: 10}};
     },
     order({seats}) {
       const busy = seats.filter(id => taken.has(id));
@@ -135,7 +138,9 @@ const demo = (() => {
       seats.forEach(id => taken.add(id));
       const id = 'DEMO-' + Math.random().toString(36).slice(2, 6).toUpperCase();
       pending = {id, seats, paidAt: Infinity};
-      const sum = seats.reduce((s, x) => s + prices[+x.split('S')[0].slice(1)], 0);
+      const disc = p => seats.length >= 2 ? Math.round(p * 0.9) : p;
+      pending.disc = disc;
+      const sum = seats.reduce((s, x) => s + disc(prices[+x.split('S')[0].slice(1)]), 0);
       return {ok: true, order: id, mock: true, pageUrl: '', sum, until: Date.now() + 15 * 60000};
     },
     mockpay({order}) {
@@ -147,7 +152,7 @@ const demo = (() => {
       if (Date.now() < pending.paidAt) return {ok: true, status: 'pending'};
       if (!pending.done) {
         pending.done = true;
-        pending.seats.forEach(id => { const [r, n] = id.slice(1).split('S').map(Number); tickets.push({code: `${order}.${id}.X7Q2K9`, row: r, n, price: prices[r], used: false, show}); });
+        pending.seats.forEach(id => { const [r, n] = id.slice(1).split('S').map(Number); tickets.push({code: `${order}.${id}.X7Q2K9`, row: r, n, price: pending.disc(prices[r]), used: false, show}); });
       }
       return {ok: true, status: 'paid', tickets: tickets.filter(t => t.code.startsWith(order))};
     },
@@ -164,7 +169,7 @@ const demo = (() => {
 })();
 
 /* ===== Купівля ===== */
-let SHOW = null, SEATS = [], MAX = 6, HOLD = 15, ZONE = {};
+let SHOW = null, SEATS = [], MAX = 6, HOLD = 15, ZONE = {}, DISC = null;
 const selected = new Set();
 
 async function loadBuy() {
@@ -173,7 +178,7 @@ async function loadBuy() {
   let res;
   try { res = await api('seats', {show: SHOW_ID}); } catch (e) { return fail('Немає звʼязку з сервером. Спробуйте ще раз.'); }
   if (!res.ok) return fail(res.error);
-  SHOW = res.show; SEATS = res.seats; MAX = res.maxSeats || 6; HOLD = res.holdMin || 15;
+  SHOW = res.show; SEATS = res.seats; MAX = res.maxSeats || 6; HOLD = res.holdMin || 15; DISC = res.discount || null;
   [...new Set(SEATS.map(s => s.price))].sort((a, b) => b - a).forEach((p, i) => ZONE[p] = PALETTE[i % PALETTE.length]);
   SEATS.forEach(s => { if (!s.free) selected.delete(s.id); });
   renderBuy();
@@ -228,7 +233,16 @@ function toggle(s, btn) {
 
 function updateBar() {
   const list = SEATS.filter(s => selected.has(s.id)).sort((a, b) => a.row - b.row || a.n - b.n);
-  const sum = list.reduce((a, s) => a + s.price, 0);
+  const full = list.reduce((a, s) => a + s.price, 0);
+  const on = DISC && list.length >= DISC.min;
+  const sum = on ? list.reduce((a, s) => a + Math.round(s.price * (100 - DISC.pct) / 100), 0) : full;
+  const promo = $('#promo');
+  if (DISC) {
+    promo.hidden = false;
+    promo.innerHTML = on
+      ? `<b>Запроси друга: −${DISC.pct}%</b> на всі квитки в замовленні`
+      : `<b>Запроси друга:</b> купи ${DISC.min} квитки, і знижка −${DISC.pct}% на кожен`;
+  }
   const byRow = {};
   list.forEach(s => (byRow[s.row] = byRow[s.row] || []).push(s.n));
   $('#picked').textContent = list.length
@@ -236,7 +250,7 @@ function updateBar() {
     : 'Натисніть на вільні місця на схемі';
   const btn = $('#pay');
   btn.disabled = !list.length;
-  btn.textContent = list.length ? `Оплатити ${money(sum)}` : 'Оберіть місця';
+  btn.innerHTML = list.length ? `Оплатити ${on ? `<span class="old">${money(full)}</span>` : ''}${money(sum)}` : 'Оберіть місця';
 }
 
 async function pay() {
